@@ -1,0 +1,35 @@
+{
+  "name": "@repo/cli",
+  "version": "0.0.0",
+  "description": "A tiny cross-runtime CLI example that runs under Bun or Node.",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "repo-cli": "./dist/index.js"
+  },
+  "exports": {
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "bun build ./src/index.ts --outdir ./dist --target node --format esm --sourcemap=linked && chmod +x ./dist/index.js",
+    "build:bin": "bun build --compile --outfile ./dist/repo-cli ./src/index.ts",
+    "dev": "bun run ./src/index.ts",
+    "start": "node ./dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@repo/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.4.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

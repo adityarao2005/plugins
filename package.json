@@ -1,0 +1,23 @@
+{
+  "name": "@repo/root",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "bun run --filter './packages/*' build && bun run --filter './apps/*' build",
+    "typecheck": "bun run --filter '*' typecheck",
+    "test": "bun test",
+    "cli": "bun ./apps/cli/src/index.ts",
+    "clean": "bun run --filter '*' clean"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.4.0"
+  },
+  "engines": {
+    "bun": ">=1.1.0"
+  }
+}
