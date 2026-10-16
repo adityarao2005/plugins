@@ -19,5 +19,8 @@
   },
   "engines": {
     "bun": ">=1.1.0"
+  },
+  "dependencies": {
+    "zod": "^4.6.7"
   }
 }
