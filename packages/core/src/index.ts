@@ -16,7 +16,11 @@ export interface PluginAsset {
     stream(): ReadableStream<Uint8Array>
 }
 
-export type UnsubscribeCallback = () => void
+export type UnsubscribeCallback = () => void | Promise<void>
+
+export type PluginHandler = (
+    context: PluginContext
+) => Promise<UnsubscribeCallback | void> | UnsubscribeCallback | void
 
 export interface PluginMetadata {
     readonly name: string

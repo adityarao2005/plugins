@@ -34,8 +34,40 @@
         "typescript": "^5.4.0",
       },
     },
+    "tests/fixtures/plugin-a-ledger": {
+      "name": "@fixture/plugin-a-ledger",
+      "version": "0.1.0",
+      "dependencies": {
+        "@repo/core": "workspace:*",
+        "zod": "^4.6.7",
+      },
+    },
+    "tests/fixtures/plugin-b-interest": {
+      "name": "@fixture/plugin-b-interest",
+      "version": "0.1.0",
+      "dependencies": {
+        "@fixture/plugin-a-ledger": "workspace:*",
+        "@repo/core": "workspace:*",
+        "zod": "^4.6.7",
+      },
+    },
+    "tests/fixtures/plugin-c-fraud-detector": {
+      "name": "@fixture/plugin-c-fraud-detector",
+      "version": "0.1.0",
+      "dependencies": {
+        "@fixture/plugin-a-ledger": "workspace:*",
+        "@repo/core": "workspace:*",
+        "zod": "^4.6.7",
+      },
+    },
   },
   "packages": {
+    "@fixture/plugin-a-ledger": ["@fixture/plugin-a-ledger@workspace:tests/fixtures/plugin-a-ledger"],
+
+    "@fixture/plugin-b-interest": ["@fixture/plugin-b-interest@workspace:tests/fixtures/plugin-b-interest"],
+
+    "@fixture/plugin-c-fraud-detector": ["@fixture/plugin-c-fraud-detector@workspace:tests/fixtures/plugin-c-fraud-detector"],
+
     "@repo/cli": ["@repo/cli@workspace:apps/cli"],
 
     "@repo/core": ["@repo/core@workspace:packages/core"],

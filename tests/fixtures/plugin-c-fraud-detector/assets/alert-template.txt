@@ -1,0 +1,1 @@
+[FRAUD ALERT] High-value activity detected on account ${accountId}: balance surged by ${delta} (New Balance: ${balance})
