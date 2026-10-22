@@ -1,5 +1,5 @@
 import { z } from "zod"
-import type { PluginContext, UnsubscribeCallback } from "@repo/core"
+import { plugin } from "@repo/core"
 import { BankLedgerSchema, type Account, type BankLedger } from "./schema"
 
 export * from "./schema"
@@ -9,71 +9,74 @@ const RateConfigSchema = z.object({
     baseRate: z.number().default(0.05)
 })
 
-export default async function handle(context: PluginContext): Promise<UnsubscribeCallback> {
-    context.logger.info(`Initializing ${context.metadata.name}@${context.metadata.version}...`)
+@plugin.component(BankLedgerSchema)
+export class BankLedgerImpl implements BankLedger {
+    currency = "USD"
+    accounts = new Map<string, Account>()
 
-    // Load bundled asset
-    const rateAsset = await context.getAsset("default-rates.json")
-    const rates = rateAsset ? await rateAsset.json(RateConfigSchema) : { currency: "USD", baseRate: 0.05 }
-
-    const accounts = new Map<string, Account>()
-
-    // Seed test accounts
-    accounts.set("acc-1", {
-        id: "acc-1",
-        owner: "Alice",
-        balance: 1000,
-        updatedAt: Date.now()
-    })
-    accounts.set("acc-2", {
-        id: "acc-2",
-        owner: "Bob",
-        balance: 500,
-        updatedAt: Date.now()
-    })
-
-    const notifyUpdate = async () => {
-        await context.putComponent(BankLedgerSchema, ledger)
+    constructor() {
+        // Seed test accounts
+        this.accounts.set("acc-1", {
+            id: "acc-1",
+            owner: "Alice",
+            balance: 1000,
+            updatedAt: Date.now()
+        })
+        this.accounts.set("acc-2", {
+            id: "acc-2",
+            owner: "Bob",
+            balance: 500,
+            updatedAt: Date.now()
+        })
     }
 
-    const ledger: BankLedger = {
-        currency: rates.currency,
-        accounts,
-        getAccount: (id: string) => accounts.get(id),
-        deposit: (id: string, amount: number) => {
-            const acc = accounts.get(id) ?? {
-                id,
-                owner: "Unknown",
-                balance: 0,
-                updatedAt: Date.now()
-            }
-            acc.balance += amount
-            acc.updatedAt = Date.now()
-            accounts.set(id, acc)
-            void notifyUpdate()
-        },
-        transfer: (fromId: string, toId: string, amount: number) => {
-            const from = accounts.get(fromId)
-            const to = accounts.get(toId)
-            if (!from || !to) {
-                throw new Error(`Invalid transfer: accounts ${fromId} or ${toId} not found`)
-            }
-            if (from.balance < amount) {
-                throw new Error(`Insufficient funds: ${fromId} has ${from.balance}, transfer requires ${amount}`)
-            }
-            from.balance -= amount
-            from.updatedAt = Date.now()
-            to.balance += amount
-            to.updatedAt = Date.now()
-            void notifyUpdate()
+    getAccount(id: string): Account | undefined {
+        return this.accounts.get(id)
+    }
+
+    deposit(id: string, amount: number): void {
+        const acc = this.accounts.get(id) ?? {
+            id,
+            owner: "Unknown",
+            balance: 0,
+            updatedAt: Date.now()
         }
+        acc.balance += amount
+        acc.updatedAt = Date.now()
+        this.accounts.set(id, acc)
     }
 
-    // Register component
-    await context.putComponent(BankLedgerSchema, ledger)
-
-    return () => {
-        context.logger.info(`Unloading ${context.metadata.name}...`)
-        void context.deleteComponent(BankLedgerSchema)
+    transfer(fromId: string, toId: string, amount: number): void {
+        const from = this.accounts.get(fromId)
+        const to = this.accounts.get(toId)
+        if (!from || !to) {
+            throw new Error(`Invalid transfer: accounts ${fromId} or ${toId} not found`)
+        }
+        if (from.balance < amount) {
+            throw new Error(`Insufficient funds: ${fromId} has ${from.balance}, transfer requires ${amount}`)
+        }
+        from.balance -= amount
+        from.updatedAt = Date.now()
+        to.balance += amount
+        to.updatedAt = Date.now()
     }
 }
+
+plugin.onActivated = async () => {
+    plugin.logger.info(`Initializing ${plugin.metadata.name}@${plugin.metadata.version}...`)
+
+    const rateAsset = await plugin.getAsset("default-rates.json")
+    const rates = rateAsset ? await rateAsset.json(RateConfigSchema) : { currency: "USD", baseRate: 0.05 }
+
+    const ledger = (plugin as any).exportedComponents?.get(BankLedgerSchema) as BankLedgerImpl | undefined
+    if (ledger) {
+        ledger.currency = rates.currency
+    }
+}
+
+plugin.onDeactivated = () => {
+    plugin.logger.info(`Unloading ${plugin.metadata.name}...`)
+}
+
+export default plugin
+
