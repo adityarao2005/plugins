@@ -23,10 +23,12 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@repo/core": "workspace:*"
+    "@repo/core": "workspace:*",
+    "jszip": "^3.10.2"
   },
   "devDependencies": {
     "@types/bun": "latest",
+    "@types/jszip": "^3.4.1",
     "typescript": "^5.4.0"
   },
   "engines": {
