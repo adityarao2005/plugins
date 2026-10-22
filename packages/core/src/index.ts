@@ -51,3 +51,12 @@ export interface PluginContext {
     getAsset(filePath: string): Promise<PluginAsset | undefined>
     listAssets(prefix?: string): Promise<string[]>
 }
+
+export type {
+    ComponentHandle,
+    ClassConstructor,
+    ComponentDecorator,
+    Callback,
+    Plugin
+} from "./plugin"
+export { plugin } from "./plugin.impl"

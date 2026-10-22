@@ -182,3 +182,123 @@ describe("Plugin System", () => {
         expect(deactivated).toBe(false);
     });
 });
+
+describe("Worker Plugin Implementation (plugin.impl.ts)", () => {
+    it("handles asset listing and on-demand getAsset via message RPC", async () => {
+        const { plugin: workerPlugin } = await import("./plugin.impl");
+
+        // Simulate host sending initialize event
+        const targetScope: any = typeof self !== "undefined" ? self : globalThis;
+        await targetScope.onmessage?.({
+            data: {
+                type: "initialize",
+                metadata: { name: "test-plugin", version: "1.0.0" },
+                assetPaths: ["config.json", "templates/main.txt", "logo.png"]
+            }
+        });
+
+        // Test listAssets
+        const allAssets = await workerPlugin.listAssets();
+        expect(allAssets).toEqual(["config.json", "templates/main.txt", "logo.png"]);
+
+        const filtered = await workerPlugin.listAssets("templates/");
+        expect(filtered).toEqual(["templates/main.txt"]);
+
+        // Test non-existent asset returns undefined without IPC
+        const missing = await workerPlugin.getAsset("non-existent.txt");
+        expect(missing).toBeUndefined();
+
+        // Test getAsset requesting from host
+        const origPostMessage = targetScope.postMessage;
+        try {
+            targetScope.postMessage = (msg: any) => {
+                if (msg.type === "get-asset" && msg.path === "config.json") {
+                    // Simulate host response
+                    setTimeout(() => {
+                        targetScope.onmessage?.({
+                            data: {
+                                type: "get-asset-response",
+                                id: msg.id,
+                                found: true,
+                                content: JSON.stringify({ rate: 0.05 }),
+                                size: 15
+                            }
+                        });
+                    }, 5);
+                }
+            };
+
+            const asset = await workerPlugin.getAsset("config.json");
+            expect(asset).toBeDefined();
+            expect(asset?.path).toBe("config.json");
+            expect(await asset?.text()).toBe(JSON.stringify({ rate: 0.05 }));
+
+            const parsed = await asset?.json<{ rate: number }>();
+            expect(parsed?.rate).toBe(0.05);
+
+            const bytes = await asset?.bytes();
+            expect(bytes instanceof Uint8Array).toBe(true);
+
+            const buffer = await asset?.arrayBuffer();
+            expect(buffer instanceof ArrayBuffer).toBe(true);
+        } finally {
+            targetScope.postMessage = origPostMessage;
+        }
+    });
+
+    it("creates an RPC proxy for require that intercepts remote method calls", async () => {
+        const { plugin: workerPlugin } = await import("./plugin.impl");
+        const targetScope: any = typeof self !== "undefined" ? self : globalThis;
+
+        const CalculatorSchema = z.object({
+            multiply: z.function({
+                input: [z.number(), z.number()],
+                output: z.number()
+            })
+        });
+
+        const origPostMessage = targetScope.postMessage;
+        try {
+            targetScope.postMessage = (msg: any) => {
+                if (msg.type === "get-component") {
+                    // Host confirms component exists
+                    setTimeout(() => {
+                        targetScope.onmessage?.({
+                            data: {
+                                type: "get-component-response",
+                                id: msg.id,
+                                found: true,
+                                value: {}
+                            }
+                        });
+                    }, 5);
+                } else if (msg.type === "call-component") {
+                    // Host executes RPC method and returns result
+                    expect(msg.method).toBe("multiply");
+                    expect(msg.args).toEqual([6, 7]);
+                    setTimeout(() => {
+                        targetScope.onmessage?.({
+                            data: {
+                                type: "call-component-response",
+                                id: msg.id,
+                                success: true,
+                                result: 42
+                            }
+                        });
+                    }, 5);
+                }
+            };
+
+            const handle = workerPlugin.require(CalculatorSchema);
+            const calc = await handle.get();
+            expect(calc).toBeDefined();
+
+            // Calling method on proxy executes RPC
+            const result = await (calc as any).multiply(6, 7);
+            expect(result).toBe(42);
+        } finally {
+            targetScope.postMessage = origPostMessage;
+        }
+    });
+});
+
