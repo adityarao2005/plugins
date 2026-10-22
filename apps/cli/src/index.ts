@@ -21,12 +21,12 @@ Options:
   -e, --entry <path>        Path to bundled index.js
   -p, --package <path>      Path to package.json manifest
   -a, --assets <paths...>   Path to asset directory (can be specified multiple times)
-  -o, --out <path>          Output .zip path (default: <name>-<version>.zip)
+  -o, --out <path>          Output .plugin path (default: <name>-<version>.plugin)
   -h, --help                Show this help message
 
 Examples:
   # Using explicit paths:
-  repo-cli -e ./dist/index.js -p ./package.json -a ./assets -o ./my-plugin.zip
+  repo-cli -e ./dist/index.js -p ./package.json -a ./assets -o ./my-plugin.plugin
 
   # Using a package directory:
   repo-cli pack ./packages/my-plugin -e ./dist/index.js -a ./assets -a ./static

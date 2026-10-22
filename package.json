@@ -8,10 +8,13 @@
     "tests/fixtures/*"
   ],
   "scripts": {
-    "build": "bun run --filter './packages/*' build && bun run --filter './apps/*' build",
+    "build": "bun run --filter './packages/*' build && bun run --filter './apps/*' build && bun run --filter './tests/fixtures/*' build",
+    "build:packages": "bun run --filter './packages/*' build",
+    "build:apps": "bun run --filter './apps/*' build",
+    "build:fixtures": "bun run --filter './tests/fixtures/*' build",
     "typecheck": "bun run --filter '*' typecheck",
     "test": "bun test",
-    "cli": "bun ./apps/cli/src/index.ts",
+    "cli": "bun ./apps/cli/dist/index.js",
     "clean": "bun run --filter '*' clean"
   },
   "devDependencies": {

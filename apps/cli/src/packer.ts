@@ -137,7 +137,7 @@ export async function packPlugin(options: PackPluginOptions): Promise<PackResult
 
     // 5. Determine output path
     const sanitizedName = name.replace(/[@/\\:]/g, "-").replace(/^-+/, "")
-    const defaultOutputName = `${sanitizedName}-${version}.zip`
+    const defaultOutputName = `${sanitizedName}-${version}.plugin`
     const outputPath = options.outputPath
         ? path.resolve(options.outputPath)
         : path.resolve(process.cwd(), defaultOutputName)

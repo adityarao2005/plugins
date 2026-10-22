@@ -8,6 +8,12 @@
   "exports": {
     ".": "./src/index.ts"
   },
+  "scripts": {
+    "build:bundle": "bun build ./src/index.ts --outfile ./dist/index.js --target browser --format esm",
+    "build:plugin": "bun ../../../apps/cli/dist/index.js -e ./dist/index.js -p ./package.json -o ./dist/plugin-b-interest.plugin",
+    "build": "bun run build:bundle && bun run build:plugin",
+    "clean": "rm -rf dist"
+  },
   "dependencies": {
     "@fixture/plugin-a-ledger": "workspace:*",
     "@repo/core": "workspace:*",
