@@ -307,6 +307,14 @@ describe("Worker Plugin Implementation (plugin.impl.ts)", () => {
 
         const origPostMessage = targetScope.postMessage;
         try {
+            await targetScope.onmessage?.({
+                data: {
+                    type: "initialize",
+                    metadata: { name: "test-plugin", version: "1.0.0" },
+                    assetPaths: ["module.wasm"]
+                }
+            });
+
             // 1. Test asset with WASM header bytes (\0asm)
             const wasmBytes = new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]);
             targetScope.postMessage = (msg: any) => {
