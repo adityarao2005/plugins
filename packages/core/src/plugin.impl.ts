@@ -98,7 +98,25 @@ function generateId(): string {
     return Math.random().toString(36).slice(2) + Date.now().toString(36)
 }
 
-function sendRequest<T = any>(message: Record<string, any>, timeoutMs = 15000): Promise<T> {
+function safePostMessage(message: any, transfer?: Transferable[]): void {
+    if (typeof targetScope.postMessage === "function") {
+        if (transfer && transfer.length > 0) {
+            try {
+                targetScope.postMessage(message, transfer)
+                return
+            } catch {
+                // Fallback to structured clone if transferables are not supported by the environment/mock
+            }
+        }
+        targetScope.postMessage(message)
+    }
+}
+
+function sendRequest<T = any>(
+    message: Record<string, any>,
+    timeoutMs = 15000,
+    transfer?: Transferable[]
+): Promise<T> {
     const id = (message["id"] as string | undefined) ?? generateId()
     return new Promise<T>((resolve, reject) => {
         const timer = setTimeout(() => {
@@ -107,7 +125,7 @@ function sendRequest<T = any>(message: Record<string, any>, timeoutMs = 15000): 
         }, timeoutMs)
 
         pendingRequests.set(id, { resolve, reject, timer })
-        targetScope.postMessage({ ...message, id })
+        safePostMessage({ ...message, id }, transfer)
     })
 }
 
@@ -141,9 +159,96 @@ function getSchemaKey(schema: z.ZodType<any>): string {
 
 function createPluginAsset(
     path: string,
-    content: ArrayBuffer | Uint8Array | string,
+    content: ArrayBuffer | Uint8Array | string | Blob | ReadableStream<Uint8Array>,
     customSize?: number
 ): PluginAsset {
+    // If it's a Blob (images, wasm binaries, etc.)
+    if (typeof Blob !== "undefined" && content instanceof Blob) {
+        return {
+            path,
+            size: customSize ?? content.size,
+            async bytes() {
+                return new Uint8Array(await content.arrayBuffer())
+            },
+            async arrayBuffer(): Promise<ArrayBuffer> {
+                return content.arrayBuffer()
+            },
+            async text() {
+                return content.text()
+            },
+            async json<T = unknown>(schema?: z.ZodType<T>): Promise<T> {
+                const text = await content.text()
+                const parsed = JSON.parse(text)
+                return schema ? schema.parse(parsed) : (parsed as T)
+            },
+            stream() {
+                return content.stream()
+            }
+        }
+    }
+
+    // If it's a ReadableStream (for streaming large blobs, audio, textures, wasm)
+    if (typeof ReadableStream !== "undefined" && content instanceof ReadableStream) {
+        let cachedBytes: Uint8Array | null = null
+        const getBytes = async (): Promise<Uint8Array> => {
+            if (cachedBytes) return cachedBytes
+            const reader = content.getReader()
+            const chunks: Uint8Array[] = []
+            let total = 0
+            while (true) {
+                const { done, value } = await reader.read()
+                if (done) break
+                if (value) {
+                    chunks.push(value)
+                    total += value.byteLength
+                }
+            }
+            const merged = new Uint8Array(total)
+            let offset = 0
+            for (const chunk of chunks) {
+                merged.set(chunk, offset)
+                offset += chunk.byteLength
+            }
+            cachedBytes = merged
+            return merged
+        }
+
+        return {
+            path,
+            size: customSize ?? 0,
+            async bytes() {
+                return getBytes()
+            },
+            async arrayBuffer(): Promise<ArrayBuffer> {
+                const b = await getBytes()
+                const buffer = new ArrayBuffer(b.byteLength)
+                new Uint8Array(buffer).set(b)
+                return buffer
+            },
+            async text() {
+                const b = await getBytes()
+                return new TextDecoder().decode(b)
+            },
+            async json<T = unknown>(schema?: z.ZodType<T>): Promise<T> {
+                const b = await getBytes()
+                const text = new TextDecoder().decode(b)
+                const parsed = JSON.parse(text)
+                return schema ? schema.parse(parsed) : (parsed as T)
+            },
+            stream() {
+                if (cachedBytes) {
+                    return new ReadableStream<Uint8Array>({
+                        start(controller) {
+                            controller.enqueue(cachedBytes!)
+                            controller.close()
+                        }
+                    })
+                }
+                return content
+            }
+        }
+    }
+
     let bytesData: Uint8Array
     if (typeof content === "string") {
         bytesData = new TextEncoder().encode(content)
@@ -200,6 +305,10 @@ function createComponentProxy<T>(
             if (typeof prop === "symbol") {
                 return Reflect.get(target, prop, receiver)
             }
+            // CRITICAL: Prevent promise chaining / thenable coercion from treating proxy as a promise
+            if (prop === "then" || prop === "catch" || prop === "finally") {
+                return undefined
+            }
             // If property or method exists directly on the target object
             if (prop in target) {
                 const val = (target as any)[prop]
@@ -211,12 +320,26 @@ function createComponentProxy<T>(
 
             // Remote method invocation / RPC over postMessage
             return (...args: any[]) => {
+                // Support sending large buffers / WASM / images via transferables if present in args
+                const transferables: Transferable[] = []
+                for (const arg of args) {
+                    if (arg instanceof ArrayBuffer) {
+                        transferables.push(arg)
+                    } else if (ArrayBuffer.isView(arg)) {
+                        transferables.push(arg.buffer)
+                    } else if (typeof ReadableStream !== "undefined" && arg instanceof ReadableStream) {
+                        transferables.push(arg)
+                    } else if (typeof MessagePort !== "undefined" && arg instanceof MessagePort) {
+                        transferables.push(arg)
+                    }
+                }
+
                 return sendRequest<{ result: any }>({
                     type: "call-component",
                     schema: schemaJson,
                     method: prop,
                     args
-                }).then((res) => {
+                }, 15000, transferables.length > 0 ? transferables : undefined).then((res) => {
                     if (res && typeof res === "object" && "result" in res) {
                         return res.result
                     }
@@ -490,14 +613,24 @@ targetScope.onmessage = async (event: MessageEvent<unknown>) => {
                     throw new Error(`Method "${method}" is not a function on component`)
                 }
                 const result = await instance[method](...args)
-                targetScope.postMessage({
+                // If result contains large binary / wasm / images, transfer it zero-copy
+                const transferables: Transferable[] = []
+                if (result instanceof ArrayBuffer) {
+                    transferables.push(result)
+                } else if (ArrayBuffer.isView(result)) {
+                    transferables.push(result.buffer)
+                } else if (typeof ReadableStream !== "undefined" && result instanceof ReadableStream) {
+                    transferables.push(result)
+                }
+
+                safePostMessage({
                     type: "invoke-component-response",
                     id,
                     success: true,
                     result
-                })
+                }, transferables.length > 0 ? transferables : undefined)
             } catch (err: any) {
-                targetScope.postMessage({
+                safePostMessage({
                     type: "invoke-component-response",
                     id,
                     success: false,

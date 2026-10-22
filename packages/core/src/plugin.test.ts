@@ -300,5 +300,95 @@ describe("Worker Plugin Implementation (plugin.impl.ts)", () => {
             targetScope.postMessage = origPostMessage;
         }
     });
+
+    it("supports sending and receiving large binary blobs (wasm data, images) and streams", async () => {
+        const { plugin: workerPlugin } = await import("./plugin.impl");
+        const targetScope: any = typeof self !== "undefined" ? self : globalThis;
+
+        const origPostMessage = targetScope.postMessage;
+        try {
+            // 1. Test asset with WASM header bytes (\0asm)
+            const wasmBytes = new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]);
+            targetScope.postMessage = (msg: any) => {
+                if (msg.type === "get-asset" && msg.path === "module.wasm") {
+                    setTimeout(() => {
+                        targetScope.onmessage?.({
+                            data: {
+                                type: "get-asset-response",
+                                id: msg.id,
+                                found: true,
+                                content: wasmBytes,
+                                size: wasmBytes.byteLength
+                            }
+                        });
+                    }, 5);
+                }
+            };
+
+            const wasmAsset = await workerPlugin.getAsset("module.wasm");
+            expect(wasmAsset).toBeDefined();
+            expect(wasmAsset?.size).toBe(8);
+
+            const buffer = await wasmAsset?.arrayBuffer();
+            expect(buffer?.byteLength).toBe(8);
+
+            // Test streaming chunks
+            const stream = wasmAsset?.stream();
+            expect(stream).toBeDefined();
+            const reader = stream?.getReader();
+            const readResult = await reader?.read();
+            expect(readResult?.value).toEqual(wasmBytes);
+
+            // 2. Test passing large image buffer through component RPC
+            const ImageProcessorSchema = z.object({
+                processImage: z.function({
+                    input: [z.instanceof(Uint8Array)],
+                    output: z.number()
+                })
+            });
+
+            const imageBytes = new Uint8Array(1024 * 64); // 64KB image chunk
+            imageBytes[0] = 0xff; // JPEG SOI marker
+            imageBytes[1] = 0xd8;
+
+            let receivedArgs: any = null;
+            targetScope.postMessage = (msg: any) => {
+                if (msg.type === "get-component") {
+                    setTimeout(() => {
+                        targetScope.onmessage?.({
+                            data: {
+                                type: "get-component-response",
+                                id: msg.id,
+                                found: true,
+                                value: {}
+                            }
+                        });
+                    }, 5);
+                } else if (msg.type === "call-component") {
+                    receivedArgs = msg.args;
+                    setTimeout(() => {
+                        targetScope.onmessage?.({
+                            data: {
+                                type: "call-component-response",
+                                id: msg.id,
+                                success: true,
+                                result: msg.args[0]?.byteLength
+                            }
+                        });
+                    }, 5);
+                }
+            };
+
+            const handle = workerPlugin.require(ImageProcessorSchema);
+            const processor = await handle.get();
+            const processedSize = await (processor as any).processImage(imageBytes);
+
+            expect(processedSize).toBe(1024 * 64);
+            expect(receivedArgs[0][0]).toBe(0xff);
+            expect(receivedArgs[0][1]).toBe(0xd8);
+        } finally {
+            targetScope.postMessage = origPostMessage;
+        }
+    });
 });
 
