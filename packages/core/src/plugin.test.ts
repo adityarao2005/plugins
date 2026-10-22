@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import z from "zod";
 import type { PluginAsset, PluginMetadata } from "./asset";
-import type { ClassConstructor, ComponentDecorator, ComponentHandle, Plugin, PluginLogger } from "./plugin";
+import type { Callback, ClassConstructor, ComponentDecorator, ComponentHandle, Plugin, PluginLogger } from "./plugin";
 
 // Mock plugin class extending the real implementation
 export class MockPlugin implements Plugin {
@@ -25,6 +25,8 @@ export class MockPlugin implements Plugin {
             warn() { },
         };
     }
+    onActivated: Callback = () => {};
+    onDeactivated: Callback = () => {};
 
     require<T>(schema: z.ZodType<T>): ComponentHandle<T> {
         return {
