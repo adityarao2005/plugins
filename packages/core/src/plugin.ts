@@ -19,15 +19,17 @@ export type ComponentDecorator<T> = <C extends ClassConstructor<T>>(
     context?: ClassDecoratorContext
 ) => C | void;
 
+export type Callback = () => void | Promise<void>
+
 export interface Plugin {
     readonly metadata: PluginMetadata;
-    readonly logger: PluginLogger;
+    logger: PluginLogger;
+    onActivated: Callback
+    onDeactivated: Callback
 
     require<T>(schema: z.ZodType<T>): ComponentHandle<T>;
-    component<T>(schema: z.ZodType<T>): ComponentDecorator<T>;
-    component<T, C extends ClassConstructor<T>>(schema: z.ZodType<T>, constructor: C): C;
-    onPluginActivated(callback: () => void | Promise<void>): void;
-    onPluginDeactivated(callback: () => void | Promise<void>): void;
+    component<T extends object>(schema: z.ZodType<T>): ComponentDecorator<T>;
+    component<T extends object, C extends ClassConstructor<T>>(schema: z.ZodType<T>, constructor: C): C;
 
     // asset handling
     getAsset(filePath: string): Promise<PluginAsset | undefined>;
