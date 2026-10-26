@@ -79,13 +79,12 @@ export class PluginHost {
     registerComponent<T extends object>(schema: z.ZodType<T>, instance: T): void {
         const schemaKey = this.componentRegistry.registerHostComponent(schema, instance)
 
-        // Check if any existing plugins require this schema
+        // Check if any existing plugins were waiting for this schema
         for (const plugin of this.plugins.values()) {
-            for (const reqSchema of plugin.requiredSchemas) {
-                if (getSchemaKey(reqSchema) === schemaKey) {
-                    this.dag.addEdge(plugin.name, "@host")
-                    plugin.waitingForDependencies.delete("@host")
-                }
+            if (plugin.waitingForDependencies.has(schemaKey)) {
+                this.dag.addEdge(plugin.name, "@host")
+                plugin.waitingForDependencies.delete(schemaKey)
+                plugin.waitingForDependencies.delete("@host")
             }
         }
 
@@ -159,42 +158,13 @@ export class PluginHost {
             }
         }
 
-        // 2. Discover manifest dependencies and check DAG for circular dependencies BEFORE spawning worker
-        const manifestDeps: string[] = []
-        const isPluginDep = (dep: string): boolean => {
-            if (dep === "@repo/core" || dep === "zod" || dep === "typescript" || dep === "jszip") {
-                return false
-            }
-            if (this.plugins.has(dep) || dep === "@host") {
-                return true
-            }
-            if (dep.startsWith("@fixture/") || dep.includes("plugin")) {
-                return true
-            }
-            return false
-        }
-
-        if (archive.manifest.dependencies) {
-            for (const dep of Object.keys(archive.manifest.dependencies)) {
-                if (isPluginDep(dep)) {
-                    manifestDeps.push(dep)
-                }
-            }
-        }
+        // 2. Add node to DAG and register explicit dependencies if specified
+        this.dag.addNode(name)
         if (options.dependencies) {
             for (const dep of options.dependencies) {
-                if (!manifestDeps.includes(dep)) {
-                    manifestDeps.push(dep)
+                if (this.plugins.has(dep) || dep === "@host") {
+                    this.dag.addEdge(name, dep)
                 }
-            }
-        }
-
-        // Add node to DAG and check cycle for each known dependency
-        this.dag.addNode(name)
-        for (const dep of manifestDeps) {
-            if (this.plugins.has(dep) || dep === "@host") {
-                // Throws CircularDependencyError if cycle is detected!
-                this.dag.addEdge(name, dep)
             }
         }
 
@@ -217,12 +187,13 @@ export class PluginHost {
             pendingRequests: new Map()
         }
 
-        // Track waiting manifest dependencies
-        for (const dep of manifestDeps) {
-            const depPlugin = this.plugins.get(dep)
-            if (!depPlugin || depPlugin.state !== "active") {
-                if (dep !== "@host") {
-                    pluginRecord.waitingForDependencies.add(dep)
+        if (options.dependencies) {
+            for (const dep of options.dependencies) {
+                const depPlugin = this.plugins.get(dep)
+                if (!depPlugin || depPlugin.state !== "active") {
+                    if (dep !== "@host") {
+                        pluginRecord.waitingForDependencies.add(dep)
+                    }
                 }
             }
         }
@@ -240,6 +211,9 @@ export class PluginHost {
             assetPaths
         })
 
+        // Allow initial top-level require announcements from the worker to arrive
+        await new Promise(resolve => setTimeout(resolve, 20))
+
         // 6. Check if we should auto-activate
         const shouldActivate = options.autoActivate ?? this.options.autoActivate
         if (shouldActivate && pluginRecord.waitingForDependencies.size === 0) {
@@ -248,7 +222,7 @@ export class PluginHost {
 
         // 7. If this plugin satisfies dependencies of previously waiting plugins, reactivate them
         if (this.options.autoReactivateDependents) {
-            this.tryReactivateWaitingPlugins()
+            await this.tryReactivateWaitingPlugins()
         }
 
         return this.createHostedPluginView(pluginRecord)
@@ -295,7 +269,16 @@ export class PluginHost {
 
         // Register exported schemas in component registry
         for (const schema of plugin.exportedSchemas) {
-            this.componentRegistry.registerPluginComponent(name, schema)
+            const schemaKey = this.componentRegistry.registerPluginComponent(name, schema)
+            // Check if any existing plugins were waiting for this plugin or its schema
+            for (const other of this.plugins.values()) {
+                if (other.name === name) continue
+                if (other.waitingForDependencies.has(schemaKey) || other.waitingForDependencies.has(name)) {
+                    this.dag.addEdge(other.name, name)
+                    other.waitingForDependencies.delete(schemaKey)
+                    other.waitingForDependencies.delete(name)
+                }
+            }
         }
 
         // Check if any waiting dependents can now be activated
@@ -360,6 +343,22 @@ export class PluginHost {
 
         // 1. Deactivate first (cascading to all dependents)
         const deactivateResult = await this.deactivatePlugin(name)
+
+        // For all dependents that required schemas exported by this plugin,
+        // mark those schemas as missing so the dependents stay deactivated until a replacement is kept back
+        for (const schema of plugin.exportedSchemas) {
+            const schemaKey = getSchemaKey(schema)
+            for (const depName of deactivateResult.cascadingDependents) {
+                const depPlugin = this.plugins.get(depName)
+                if (depPlugin) {
+                    for (const reqSchema of depPlugin.requiredSchemas) {
+                        if (getSchemaKey(reqSchema) === schemaKey) {
+                            depPlugin.waitingForDependencies.add(schemaKey)
+                        }
+                    }
+                }
+            }
+        }
 
         // 2. Terminate target worker and cleanup
         await plugin.worker.terminate()
@@ -466,11 +465,15 @@ export class PluginHost {
                         if (providerNode !== plugin.name) {
                             try {
                                 this.dag.addEdge(plugin.name, providerNode)
+                                plugin.waitingForDependencies.delete(schemaKey)
+                                plugin.waitingForDependencies.delete(providerNode)
                             } catch (err) {
                                 // Cycle detected!
                                 console.error(`Cycle detected when "${plugin.name}" required "${schemaKey}":`, err)
                             }
                         }
+                    } else {
+                        plugin.waitingForDependencies.add(schemaKey)
                     }
                     break
                 }
@@ -677,7 +680,6 @@ export class PluginHost {
             if (node === "@host") continue
             const plugin = this.plugins.get(node)
             if (!plugin || plugin.state !== "deactivated") continue
-
             const deps = this.dag.getDirectDependencies(plugin.name)
             let allActive = true
 
@@ -687,10 +689,12 @@ export class PluginHost {
                 if (!depPlugin || depPlugin.state !== "active") {
                     allActive = false
                     break
+                } else {
+                    plugin.waitingForDependencies.delete(dep)
                 }
             }
 
-            if (allActive) {
+            if (allActive && plugin.waitingForDependencies.size === 0) {
                 try {
                     await this.activatePlugin(plugin.name)
                 } catch {

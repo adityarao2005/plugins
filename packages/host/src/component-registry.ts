@@ -1,19 +1,21 @@
 import z from "zod"
 
-export function serializeSchema(schema: z.ZodType<any>): any {
-    try {
-        if (typeof (schema as any).toJSONSchema === "function") {
-            return (schema as any).toJSONSchema()
-        }
-        if (typeof (z as any).toJSONSchema === "function") {
-            return (z as any).toJSONSchema(schema, { unrepresentable: "any" })
-        }
-    } catch {
-        // Fallback for custom or unrepresentable constructs
+export function serializeSchema(schema: any): any {
+    if (!schema) return { type: "unknown" }
+    if (typeof schema === "object" && Array.isArray(schema.shape)) {
+        return schema
     }
+    if (schema.description) {
+        return { description: schema.description }
+    }
+    const def = schema._def
+    const shapeObj = schema.shape ?? (typeof def?.shape === "function" ? def.shape() : def?.shape)
+    const shapeKeys = shapeObj && typeof shapeObj === "object" ? Object.keys(shapeObj).sort() : []
+
     return {
-        description: schema.description ?? (schema as any)._def?.description,
-        type: (schema as any)._def?.typeName ?? "schema"
+        description: schema.description ?? def?.description,
+        type: def?.typeName ?? schema.type ?? "schema",
+        shape: shapeKeys
     }
 }
 
