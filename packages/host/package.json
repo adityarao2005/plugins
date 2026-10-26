@@ -1,0 +1,38 @@
+{
+  "name": "@repo/host",
+  "version": "0.0.0",
+  "description": "Cross-runtime plugin loader and host library for .plugin files with DAG dependency management.",
+  "type": "module",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "bun": "./src/index.ts",
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "bun build ./src/index.ts --outdir ./dist --target browser --format esm --sourcemap=linked",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@repo/core": "workspace:*",
+    "jszip": "^3.10.2",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/jszip": "^3.4.1",
+    "typescript": "^7"
+  }
+}
