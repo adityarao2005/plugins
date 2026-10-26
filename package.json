@@ -14,6 +14,7 @@
     "build:fixtures": "bun run --filter './tests/fixtures/*' build",
     "typecheck": "bun run --filter '*' typecheck",
     "test": "bun test",
+    "example": "bun ./examples/basic-host.ts",
     "cli": "bun ./apps/cli/dist/index.js",
     "clean": "bun run --filter '*' clean"
   },
