@@ -4,7 +4,7 @@ import type { IPluginWorker, CreateWorkerOptions } from "./types"
  * Detect current execution runtime.
  */
 export function detectRuntime(): "browser" | "bun" | "node" {
-    if (typeof Bun !== "undefined") {
+    if (typeof (globalThis as any).Bun !== "undefined") {
         return "bun"
     }
     if (typeof window !== "undefined" || (typeof self !== "undefined" && typeof (self as any).Worker !== "undefined" && typeof (globalThis as any).process === "undefined")) {

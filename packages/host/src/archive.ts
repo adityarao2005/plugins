@@ -72,7 +72,7 @@ export class PluginArchive {
 
         if (typeof source === "string") {
             // If running in Node or Bun:
-            if (typeof process !== "undefined" && (process.versions?.node || process.versions?.bun)) {
+            if (typeof process !== "undefined" && (process.versions?.["node"] || process.versions?.["bun"])) {
                 const fs = await import("node:fs/promises")
                 const buffer = await fs.readFile(source)
                 zipBytes = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength)

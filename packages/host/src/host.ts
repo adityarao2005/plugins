@@ -300,7 +300,7 @@ export class PluginHost {
 
         // Check if any waiting dependents can now be activated
         if (this.options.autoReactivateDependents) {
-            this.tryReactivateWaitingPlugins()
+            await this.tryReactivateWaitingPlugins()
         }
     }
 
@@ -666,8 +666,17 @@ export class PluginHost {
      * and reactivate them if ready.
      */
     private async tryReactivateWaitingPlugins(): Promise<void> {
-        for (const plugin of this.plugins.values()) {
-            if (plugin.state !== "deactivated") continue
+        let order: string[]
+        try {
+            order = this.dag.topologicalSort()
+        } catch {
+            order = Array.from(this.plugins.keys())
+        }
+
+        for (const node of order) {
+            if (node === "@host") continue
+            const plugin = this.plugins.get(node)
+            if (!plugin || plugin.state !== "deactivated") continue
 
             const deps = this.dag.getDirectDependencies(plugin.name)
             let allActive = true
