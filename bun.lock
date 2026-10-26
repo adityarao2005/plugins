@@ -10,6 +10,7 @@
       "devDependencies": {
         "@types/bun": "latest",
         "typescript": "^5.4.0",
+        "wabt": "^1.0.39",
       },
     },
     "apps/cli": {
@@ -26,6 +27,23 @@
         "@types/bun": "latest",
         "@types/jszip": "^3.4.1",
         "typescript": "^5.4.0",
+      },
+    },
+    "examples/wasm/plugins/plugin-wasm-rust": {
+      "name": "@example/plugin-wasm-rust",
+      "version": "1.0.0",
+      "dependencies": {
+        "@repo/core": "workspace:*",
+        "zod": "^4.6.7",
+      },
+    },
+    "examples/wasm/plugins/plugin-wasm-wat": {
+      "name": "@example/plugin-wasm-wat",
+      "version": "1.0.0",
+      "dependencies": {
+        "@example/plugin-wasm-rust": "workspace:*",
+        "@repo/core": "workspace:*",
+        "zod": "^4.6.7",
       },
     },
     "packages/core": {
@@ -78,6 +96,10 @@
     },
   },
   "packages": {
+    "@example/plugin-wasm-rust": ["@example/plugin-wasm-rust@workspace:examples/wasm/plugins/plugin-wasm-rust"],
+
+    "@example/plugin-wasm-wat": ["@example/plugin-wasm-wat@workspace:examples/wasm/plugins/plugin-wasm-wat"],
+
     "@fixture/plugin-a-ledger": ["@fixture/plugin-a-ledger@workspace:tests/fixtures/plugin-a-ledger"],
 
     "@fixture/plugin-b-interest": ["@fixture/plugin-b-interest@workspace:tests/fixtures/plugin-b-interest"],
@@ -167,6 +189,8 @@
     "undici-types": ["undici-types@8.12.2", "", {}, "sha512-VoMeD2O0KdHhcn+oPqOrpivN+7aDOklVSwOLD7JNjbzV1CboAFek9IFOXnreoufTUtAsCsOK0iETiERPNR/fDA=="],
 
     "util-deprecate": ["util-deprecate@1.0.2", "", {}, "sha512-EPD5q1uXyFxJpCrLnCc1nHnq3gOa6DZBocAIiI2TaSCA7VCJ1UJDMagCzIkXNsUYfD1daK//LTEQ8xiIbrHtcw=="],
+
+    "wabt": ["wabt@1.0.39", "", { "bin": { "wasm2c": "bin/wasm2c", "wasm2wat": "bin/wasm2wat", "wat2wasm": "bin/wat2wasm", "wasm-stats": "bin/wasm-stats", "wasm-strip": "bin/wasm-strip", "wasm-interp": "bin/wasm-interp", "wasm-objdump": "bin/wasm-objdump", "wasm-validate": "bin/wasm-validate", "wasm-decompile": "bin/wasm-decompile" } }, "sha512-ba+dRL/75VQQY7RkU/CgriGbkoWAfS8TDyUlJfJhJ8KhtXgMl5dhNvoPNUcQ9IWRhW8u41glMSuZeTvsYq2rRg=="],
 
     "zod": ["zod@4.6.7", "", {}, "sha512-g8W2D2kU6a8untc053fX1uVBKzM7yqAxW/3zwk83+6RyF2+SKOuV+c0wBDhUwzV1PaGapmZH+rmcUzPf+3CGwg=="],
 

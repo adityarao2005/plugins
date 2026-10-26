@@ -414,7 +414,7 @@ export class PluginHost {
         }>(plugin, {
             type: "invoke-component",
             id,
-            schema,
+            schema: getSchemaKey(schema),
             method,
             args
         })

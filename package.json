@@ -5,22 +5,27 @@
   "workspaces": [
     "apps/*",
     "packages/*",
-    "tests/fixtures/*"
+    "tests/fixtures/*",
+    "examples/wasm/plugins/*"
   ],
   "scripts": {
-    "build": "bun run --filter './packages/*' build && bun run --filter './apps/*' build && bun run --filter './tests/fixtures/*' build",
+    "build": "bun run --filter './packages/*' build && bun run --filter './apps/*' build && bun run --filter './tests/fixtures/*' build && bun run --filter './examples/wasm/plugins/*' build",
     "build:packages": "bun run --filter './packages/*' build",
     "build:apps": "bun run --filter './apps/*' build",
     "build:fixtures": "bun run --filter './tests/fixtures/*' build",
+    "build:wasm-examples": "bun run --filter './examples/wasm/plugins/*' build",
     "typecheck": "bun run --filter '*' typecheck",
     "test": "bun test",
     "example": "bun ./examples/basic-host.ts",
+    "example:basic": "bun ./examples/basic/host.ts",
+    "example:wasm": "bun ./examples/wasm/host.ts",
     "cli": "bun ./apps/cli/dist/index.js",
     "clean": "bun run --filter '*' clean"
   },
   "devDependencies": {
     "@types/bun": "latest",
-    "typescript": "^5.4.0"
+    "typescript": "^5.4.0",
+    "wabt": "^1.0.39"
   },
   "engines": {
     "bun": ">=1.1.0"

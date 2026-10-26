@@ -1,0 +1,24 @@
+{
+  "name": "@example/plugin-wasm-wat",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/schema.ts"
+  },
+  "scripts": {
+    "build:wasm": "mkdir -p assets && bun x wat2wasm ./src/cipher.wat -o ./assets/cipher.wasm",
+    "build:bundle": "bun build ./src/index.ts --outfile ./dist/index.js --target browser --format esm",
+    "build:plugin": "bun ../../../../apps/cli/dist/index.js -e ./dist/index.js -p ./package.json -a ./assets -o ./dist/plugin-wasm-wat.plugin",
+    "build": "bun run build:wasm && bun run build:bundle && bun run build:plugin",
+    "clean": "rm -rf dist assets/cipher.wasm"
+  },
+  "dependencies": {
+    "@example/plugin-wasm-rust": "workspace:*",
+    "@repo/core": "workspace:*",
+    "zod": "^4.6.7"
+  }
+}
